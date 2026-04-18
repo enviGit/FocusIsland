@@ -12,47 +12,58 @@ struct MenuBarPillView: View {
     let activeColor = Color(hex: 0x34C759)
 
     var isExpanded: Bool {
-        appState.isHovered || appState.isPopoverOpen
+        appState.isHovered && !appState.isPopoverOpen
+    }
+    
+    private func textWidth(_ text: String) -> CGFloat {
+        let font = NSFont.systemFont(ofSize: 11, weight: .medium)
+        let attributes = [NSAttributedString.Key.font: font]
+        return (text as NSString).size(withAttributes: attributes).width
     }
 
     var body: some View {
-        HStack(spacing: 6) {
+        HStack(spacing: appState.isActive ? 6 : 0) {
             if !appState.isActive {
-                Image(systemName: "moon.zzz.fill")
+                Image(systemName: "moon.fill")
+                    .font(.system(size: 14, weight: .regular))
+                    .frame(width: 18)
+            } else {
+                Image(systemName: "bolt.fill")
                     .font(.system(size: 10, weight: .bold))
-                    .foregroundColor(.white.opacity(0.8))
                 
                 if isExpanded {
-                    Text("Inactive")
-                        .font(.system(size: 11, weight: .medium))
-                        .fixedSize(horizontal: true, vertical: false)
-                }
-            } else {
-                if isExpanded {
-                    Text(appState.taskName.isEmpty ? "Focusing" : appState.taskName)
-                        .font(.system(size: 11, weight: .medium))
-                        .fixedSize(horizontal: true, vertical: false)
-                } else {
-                    Image(systemName: "bolt.fill")
-                        .font(.system(size: 10, weight: .bold))
+                    let text = appState.taskName.isEmpty ? "Focusing" : appState.taskName
+                    let dynamicWidth = min(textWidth(text), 180)
                     
+                    Text(text)
+                        .font(.system(size: 11, weight: .medium))
+                        .lineLimit(1)
+                        .truncationMode(.tail)
+                        .frame(width: dynamicWidth, alignment: .leading)
+                } else {
                     Text(appState.formattedTime)
                         .font(.system(size: 11, weight: .medium))
                         .monospacedDigit()
-                        .fixedSize(horizontal: true, vertical: false)
+                        .lineLimit(1)
                 }
             }
         }
-        .padding(.horizontal, 8)
-        .frame(height: 20)
-        .fixedSize()
-        .foregroundStyle(.white)
+        .padding(.horizontal, appState.isActive ? 8 : 8)
+        .frame(height: 23)
+        .fixedSize(horizontal: true, vertical: false)
+        .foregroundStyle(appState.isActive ? .white : .primary)
         .background(
-            Capsule()
-                .fill(appState.isActive ? activeColor : Color.gray.opacity(0.4))
+            Group {
+                if appState.isActive {
+                    Capsule()
+                        .fill(activeColor)
+                } else {
+                    RoundedRectangle(cornerRadius: 12)
+                        .fill(appState.isPopoverOpen ? Color.primary.opacity(0.06) : Color.clear)
+                }
+            }
         )
-        .clipShape(Capsule())
-        .contentShape(Capsule())
+        .contentShape(Rectangle())
         .animation(.spring(duration: 0.25, bounce: 0), value: isExpanded)
         .animation(.spring(duration: 0.25, bounce: 0), value: appState.isActive)
     }

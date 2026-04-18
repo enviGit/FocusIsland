@@ -25,6 +25,14 @@ struct TodaySessionsView: View {
     @State private var taskInput: String = ""
     @State private var expandedGroups: Set<String> = []
     
+    @State private var editingGroupId: String? = nil
+    @State private var editedTaskName: String = ""
+    @FocusState private var focusedGroup: String?
+    
+    @State private var editingSessionId: PersistentIdentifier? = nil
+    @State private var editedSessionName: String = ""
+    @FocusState private var focusedSession: PersistentIdentifier?
+    
     var favoriteTasks: [String] {
         let favs = sessions.filter { $0.isFavorite }
         return Array(Set(favs.map { $0.taskName })).sorted()
@@ -69,7 +77,7 @@ struct TodaySessionsView: View {
                         .cornerRadius(6)
                         .onSubmit { toggleCurrentSession() }
                         .onChange(of: taskInput) { oldValue, newValue in
-                            if appState.isActive {
+                            if appState.isActive && editingGroupId == nil && editingSessionId == nil {
                                 appState.taskName = newValue
                             }
                         }
@@ -152,13 +160,30 @@ struct TodaySessionsView: View {
                                 
                                 VStack(alignment: .leading, spacing: 2) {
                                     HStack {
-                                        Text(taskGroup.taskName)
-                                            .font(.body)
-                                        
-                                        if taskGroup.isFavorite {
-                                            Image(systemName: "star.fill")
-                                                .foregroundColor(.yellow)
-                                                .font(.caption)
+                                        if editingGroupId == taskGroup.id {
+                                            TextField("Group name", text: $editedTaskName)
+                                                .textFieldStyle(.plain)
+                                                .font(.body)
+                                                .focused($focusedGroup, equals: taskGroup.id)
+                                                .onSubmit { saveGroupEdit(for: taskGroup) }
+                                                .onChange(of: focusedGroup) { old, new in
+                                                    if new == nil && editingGroupId == taskGroup.id {
+                                                        saveGroupEdit(for: taskGroup)
+                                                    }
+                                                }
+                                        } else {
+                                            Text(taskGroup.taskName)
+                                                .font(.body)
+                                                .background(Color.white.opacity(0.001))
+                                                .onTapGesture {
+                                                    startGroupEditing(taskGroup)
+                                                }
+                                            
+                                            if taskGroup.isFavorite {
+                                                Image(systemName: "star.fill")
+                                                    .foregroundColor(.yellow)
+                                                    .font(.caption)
+                                            }
                                         }
                                     }
                                     
@@ -177,21 +202,13 @@ struct TodaySessionsView: View {
                                     .foregroundColor(.secondary)
                                 
                                 HStack(spacing: 12) {
-                                    Button {
-                                        restartExistingTask(name: taskGroup.taskName)
-                                    } label: {
-                                        Image(systemName: "play.fill")
-                                            .foregroundColor(.blue)
-                                    }
-                                    .buttonStyle(.plain)
+                                    Button { restartExistingTask(name: taskGroup.taskName) } label: {
+                                        Image(systemName: "play.fill").foregroundColor(.blue)
+                                    }.buttonStyle(.plain)
                                     
-                                    Button {
-                                        deleteGroup(taskGroup)
-                                    } label: {
-                                        Image(systemName: "trash")
-                                            .foregroundColor(.red.opacity(0.7))
-                                    }
-                                    .buttonStyle(.plain)
+                                    Button { deleteGroup(taskGroup) } label: {
+                                        Image(systemName: "trash").foregroundColor(.red.opacity(0.7))
+                                    }.buttonStyle(.plain)
                                 }
                                 .padding(.leading, 8)
                             }
@@ -208,6 +225,28 @@ struct TodaySessionsView: View {
                                         Text("\(session.startDate, format: .dateTime.hour().minute()) - \(session.endDate ?? Date(), format: .dateTime.hour().minute())")
                                             .font(.caption)
                                             .foregroundColor(.secondary)
+                                            .frame(width: 80, alignment: .leading)
+                                        
+                                        if editingSessionId == session.id {
+                                            TextField("Session name", text: $editedSessionName)
+                                                .textFieldStyle(.plain)
+                                                .font(.caption)
+                                                .focused($focusedSession, equals: session.id)
+                                                .onSubmit { saveSessionEdit(session) }
+                                                .onChange(of: focusedSession) { old, new in
+                                                    if new == nil && editingSessionId == session.id {
+                                                        saveSessionEdit(session)
+                                                    }
+                                                }
+                                        } else {
+                                            Text(session.taskName)
+                                                .font(.caption)
+                                                .foregroundColor(.secondary.opacity(0.6))
+                                                .background(Color.white.opacity(0.001))
+                                                .onTapGesture {
+                                                    startSessionEditing(session)
+                                                }
+                                        }
                                         
                                         Spacer()
                                         
@@ -243,6 +282,52 @@ struct TodaySessionsView: View {
                 taskInput = appState.taskName
             }
         }
+    }
+    
+    private func startGroupEditing(_ group: TaskGroup) {
+        editedTaskName = group.taskName
+        editingGroupId = group.id
+        editingSessionId = nil
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) {
+            focusedGroup = group.id
+        }
+    }
+    
+    private func saveGroupEdit(for group: TaskGroup) {
+        let newName = editedTaskName.trimmingCharacters(in: .whitespaces)
+        if !newName.isEmpty && newName != group.taskName {
+            for session in group.sessions {
+                session.taskName = newName
+            }
+            if appState.isActive && appState.taskName == group.taskName {
+                appState.taskName = newName
+                taskInput = newName
+            }
+        }
+        editingGroupId = nil
+        focusedGroup = nil
+    }
+    
+    private func startSessionEditing(_ session: FocusSession) {
+        editedSessionName = session.taskName
+        editingSessionId = session.id
+        editingGroupId = nil
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) {
+            focusedSession = session.id
+        }
+    }
+    
+    private func saveSessionEdit(_ session: FocusSession) {
+        let newName = editedSessionName.trimmingCharacters(in: .whitespaces)
+        if !newName.isEmpty && newName != session.taskName {
+            session.taskName = newName
+            if appState.isActive && appState.currentSessionStart == session.startDate {
+                appState.taskName = newName
+                taskInput = newName
+            }
+        }
+        editingSessionId = nil
+        focusedSession = nil
     }
     
     private func toggleCurrentSession() {

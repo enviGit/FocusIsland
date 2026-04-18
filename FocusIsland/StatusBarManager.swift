@@ -11,13 +11,19 @@ import SwiftData
 
 class TrackingHostingView<Content: View>: NSHostingView<Content> {
     var onHover: ((Bool) -> Void)?
-    private var trackingArea: NSTrackingArea?
+    var onClick: ((NSEvent) -> Void)?
     
+    private var trackingArea: NSTrackingArea?
     private var hoverWorkItem: DispatchWorkItem?
 
     override func viewDidMoveToWindow() {
         super.viewDidMoveToWindow()
         setupTrackingArea()
+    }
+    
+    override func layout() {
+        super.layout()
+        NotificationCenter.default.post(name: NSNotification.Name("UpdatePopoverPosition"), object: nil)
     }
 
     private func setupTrackingArea() {
@@ -47,6 +53,14 @@ class TrackingHostingView<Content: View>: NSHostingView<Content> {
         
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.15, execute: workItem)
     }
+    
+    override func mouseDown(with event: NSEvent) {
+        onClick?(event)
+    }
+    
+    override func rightMouseDown(with event: NSEvent) {
+        onClick?(event)
+    }
 }
 
 class StatusBarManager: NSObject, NSPopoverDelegate {
@@ -65,8 +79,16 @@ class StatusBarManager: NSObject, NSPopoverDelegate {
             hostingView.translatesAutoresizingMaskIntoConstraints = false
             
             hostingView.onHover = { [weak self] isHovering in
-                withAnimation(.spring(response: 0.35, dampingFraction: 0.7)) {
+                withAnimation(.spring(duration: 0.25, bounce: 0)) {
                     self?.appState.isHovered = isHovering
+                }
+            }
+            
+            hostingView.onClick = { [weak self] event in
+                if event.type == .rightMouseDown {
+                    self?.showContextMenu()
+                } else {
+                    self?.togglePopover()
                 }
             }
             
@@ -79,13 +101,11 @@ class StatusBarManager: NSObject, NSPopoverDelegate {
                 hostingView.trailingAnchor.constraint(equalTo: button.trailingAnchor)
             ])
             
-            button.action = #selector(handleStatusItemClick)
-            button.target = self
-            button.sendAction(on: [.leftMouseUp, .rightMouseUp])
+            button.action = nil
         }
         
         popover = NSPopover()
-        popover?.contentSize = NSSize(width: 320, height: 450)
+        popover?.contentSize = NSSize(width: 330, height: 480)
         popover?.behavior = .transient
         popover?.delegate = self
         
@@ -94,15 +114,14 @@ class StatusBarManager: NSObject, NSPopoverDelegate {
             .modelContainer(modelContainer)
             
         popover?.contentViewController = NSHostingController(rootView: popoverView)
-    }
-
-    @objc func handleStatusItemClick() {
-        let event = NSApp.currentEvent
         
-        if event?.type == .rightMouseUp {
-            showContextMenu()
-        } else {
-            togglePopover()
+        NotificationCenter.default.addObserver(self, selector: #selector(updatePopoverPosition), name: NSNotification.Name("UpdatePopoverPosition"), object: nil)
+    }
+    
+    @objc func updatePopoverPosition() {
+        if let button = statusItem?.button, popover?.isShown == true {
+            let rightEdge = NSRect(x: button.bounds.width - 4, y: 0, width: 4, height: button.bounds.height)
+            popover?.positioningRect = rightEdge
         }
     }
     
@@ -118,7 +137,8 @@ class StatusBarManager: NSObject, NSPopoverDelegate {
                 popover?.performClose(nil)
             } else {
                 appState.isPopoverOpen = true
-                popover?.show(relativeTo: button.bounds, of: button, preferredEdge: .minY)
+                let rightEdge = NSRect(x: button.bounds.width - 4, y: 0, width: 4, height: button.bounds.height)
+                popover?.show(relativeTo: rightEdge, of: button, preferredEdge: .minY)
             }
         }
     }
