@@ -20,11 +20,6 @@ class TrackingHostingView<Content: View>: NSHostingView<Content> {
         super.viewDidMoveToWindow()
         setupTrackingArea()
     }
-    
-    override func layout() {
-        super.layout()
-        NotificationCenter.default.post(name: NSNotification.Name("UpdatePopoverPosition"), object: nil)
-    }
 
     private func setupTrackingArea() {
         if let existing = trackingArea {
@@ -79,7 +74,7 @@ class StatusBarManager: NSObject, NSPopoverDelegate {
             hostingView.translatesAutoresizingMaskIntoConstraints = false
             
             hostingView.onHover = { [weak self] isHovering in
-                withAnimation(.spring(duration: 0.25, bounce: 0)) {
+                withAnimation(.spring(response: 0.4, dampingFraction: 0.7)) {
                     self?.appState.isHovered = isHovering
                 }
             }
@@ -114,20 +109,15 @@ class StatusBarManager: NSObject, NSPopoverDelegate {
             .modelContainer(modelContainer)
             
         popover?.contentViewController = NSHostingController(rootView: popoverView)
-        
-        NotificationCenter.default.addObserver(self, selector: #selector(updatePopoverPosition), name: NSNotification.Name("UpdatePopoverPosition"), object: nil)
-    }
-    
-    @objc func updatePopoverPosition() {
-        if let button = statusItem?.button, popover?.isShown == true {
-            let rightEdge = NSRect(x: button.bounds.width - 4, y: 0, width: 4, height: button.bounds.height)
-            popover?.positioningRect = rightEdge
-        }
     }
     
     func popoverDidClose(_ notification: Notification) {
-        withAnimation(.spring(duration: 0.25, bounce: 0)) {
+        withAnimation(.spring(response: 0.4, dampingFraction: 0.7)) {
             appState.isPopoverOpen = false
+            if !appState.isActive {
+                appState.taskName = ""
+                appState.secondsElapsed = 0
+            }
         }
     }
 
@@ -137,8 +127,7 @@ class StatusBarManager: NSObject, NSPopoverDelegate {
                 popover?.performClose(nil)
             } else {
                 appState.isPopoverOpen = true
-                let rightEdge = NSRect(x: button.bounds.width - 4, y: 0, width: 4, height: button.bounds.height)
-                popover?.show(relativeTo: rightEdge, of: button, preferredEdge: .minY)
+                popover?.show(relativeTo: button.bounds, of: button, preferredEdge: .minY)
             }
         }
     }

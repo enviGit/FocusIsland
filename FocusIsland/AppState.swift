@@ -39,8 +39,6 @@ class AppState: ObservableObject {
             timer?.invalidate()
             timer = nil
             currentSessionStart = nil
-            taskName = ""
-            secondsElapsed = 0
         }
     
     var formattedTime: String {

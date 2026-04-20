@@ -82,6 +82,14 @@ struct TodaySessionsView: View {
                             }
                         }
                     
+                    if appState.isActive {
+                        Text(appState.formattedTime)
+                            .font(.system(size: 14, weight: .medium))
+                            .monospacedDigit()
+                            .foregroundColor(.secondary)
+                            .padding(.horizontal, 4)
+                    }
+                    
                     Button(action: toggleCurrentSession) {
                         Image(systemName: appState.isActive ? "stop.circle.fill" : "play.circle.fill")
                             .font(.system(size: 24))
@@ -131,149 +139,161 @@ struct TodaySessionsView: View {
                     .foregroundColor(.secondary)
                 Spacer()
             } else {
-                List {
-                    ForEach(groupedTasks) { taskGroup in
-                        let isSingle = taskGroup.sessions.count == 1
-                        
-                        VStack(spacing: 0) {
-                            HStack(alignment: .center) {
-                                if !isSingle {
-                                    Button {
-                                        withAnimation(.easeInOut(duration: 0.2)) {
-                                            if expandedGroups.contains(taskGroup.id) {
-                                                expandedGroups.remove(taskGroup.id)
-                                            } else {
-                                                expandedGroups.insert(taskGroup.id)
-                                            }
-                                        }
-                                    } label: {
-                                        Image(systemName: "chevron.right")
-                                            .font(.caption)
-                                            .foregroundColor(.secondary)
-                                            .rotationEffect(.degrees(expandedGroups.contains(taskGroup.id) ? 90 : 0))
-                                            .frame(width: 16)
-                                    }
-                                    .buttonStyle(.plain)
-                                } else {
-                                    Spacer().frame(width: 16)
-                                }
-                                
-                                VStack(alignment: .leading, spacing: 2) {
-                                    HStack {
-                                        if editingGroupId == taskGroup.id {
-                                            TextField("Group name", text: $editedTaskName)
-                                                .textFieldStyle(.plain)
-                                                .font(.body)
-                                                .focused($focusedGroup, equals: taskGroup.id)
-                                                .onSubmit { saveGroupEdit(for: taskGroup) }
-                                                .onChange(of: focusedGroup) { old, new in
-                                                    if new == nil && editingGroupId == taskGroup.id {
-                                                        saveGroupEdit(for: taskGroup)
-                                                    }
-                                                }
-                                        } else {
-                                            Text(taskGroup.taskName)
-                                                .font(.body)
-                                                .background(Color.white.opacity(0.001))
-                                                .onTapGesture {
-                                                    startGroupEditing(taskGroup)
-                                                }
-                                            
-                                            if taskGroup.isFavorite {
-                                                Image(systemName: "star.fill")
-                                                    .foregroundColor(.yellow)
-                                                    .font(.caption)
-                                            }
-                                        }
-                                    }
-                                    
-                                    if isSingle, let session = taskGroup.sessions.first {
-                                        Text("\(session.startDate, format: .dateTime.hour().minute()) - \(session.endDate ?? Date(), format: .dateTime.hour().minute())")
-                                            .font(.caption)
-                                            .foregroundColor(.secondary)
-                                    }
-                                }
-                                
-                                Spacer()
-                                
-                                Text(formatDuration(taskGroup.totalDuration))
-                                    .font(.body)
-                                    .monospacedDigit()
-                                    .foregroundColor(.secondary)
-                                
-                                HStack(spacing: 12) {
-                                    Button { restartExistingTask(name: taskGroup.taskName) } label: {
-                                        Image(systemName: "play.fill").foregroundColor(.blue)
-                                    }.buttonStyle(.plain)
-                                    
-                                    Button { deleteGroup(taskGroup) } label: {
-                                        Image(systemName: "trash").foregroundColor(.red.opacity(0.7))
-                                    }.buttonStyle(.plain)
-                                }
-                                .padding(.leading, 8)
-                            }
-                            .padding(.vertical, 6)
-                            .contextMenu {
-                                Button("Toggle Favorite") {
-                                    toggleFavorite(for: taskGroup.taskName)
-                                }
-                            }
+                ScrollViewReader { proxy in
+                    List {
+                        ForEach(groupedTasks) { taskGroup in
+                            let isSingle = taskGroup.sessions.count == 1
                             
-                            if expandedGroups.contains(taskGroup.id) && !isSingle {
-                                ForEach(taskGroup.sessions) { session in
-                                    HStack {
-                                        Text("\(session.startDate, format: .dateTime.hour().minute()) - \(session.endDate ?? Date(), format: .dateTime.hour().minute())")
-                                            .font(.caption)
-                                            .foregroundColor(.secondary)
-                                            .frame(width: 80, alignment: .leading)
-                                        
-                                        if editingSessionId == session.id {
-                                            TextField("Session name", text: $editedSessionName)
-                                                .textFieldStyle(.plain)
-                                                .font(.caption)
-                                                .focused($focusedSession, equals: session.id)
-                                                .onSubmit { saveSessionEdit(session) }
-                                                .onChange(of: focusedSession) { old, new in
-                                                    if new == nil && editingSessionId == session.id {
-                                                        saveSessionEdit(session)
-                                                    }
-                                                }
-                                        } else {
-                                            Text(session.taskName)
-                                                .font(.caption)
-                                                .foregroundColor(.secondary.opacity(0.6))
-                                                .background(Color.white.opacity(0.001))
-                                                .onTapGesture {
-                                                    startSessionEditing(session)
-                                                }
-                                        }
-                                        
-                                        Spacer()
-                                        
-                                        Text(formatDuration(getDuration(of: session)))
-                                            .font(.caption)
-                                            .monospacedDigit()
-                                            .foregroundColor(.secondary)
-                                        
+                            VStack(spacing: 0) {
+                                HStack(alignment: .center) {
+                                    if !isSingle {
                                         Button {
-                                            deleteSession(session)
+                                            withAnimation(.easeInOut(duration: 0.2)) {
+                                                if expandedGroups.contains(taskGroup.id) {
+                                                    expandedGroups.remove(taskGroup.id)
+                                                } else {
+                                                    expandedGroups.insert(taskGroup.id)
+                                                }
+                                            }
                                         } label: {
-                                            Image(systemName: "trash")
-                                                .foregroundColor(.red.opacity(0.7))
+                                            Image(systemName: "chevron.right")
                                                 .font(.caption)
+                                                .foregroundColor(.secondary)
+                                                .rotationEffect(.degrees(expandedGroups.contains(taskGroup.id) ? 90 : 0))
+                                                .frame(width: 16)
                                         }
                                         .buttonStyle(.plain)
-                                        .padding(.leading, 8)
+                                    } else {
+                                        Spacer().frame(width: 16)
                                     }
-                                    .padding(.vertical, 4)
-                                    .padding(.leading, 24)
+                                    
+                                    VStack(alignment: .leading, spacing: 2) {
+                                        HStack {
+                                            if editingGroupId == taskGroup.id {
+                                                TextField("Group name", text: $editedTaskName)
+                                                    .textFieldStyle(.plain)
+                                                    .font(.body)
+                                                    .focused($focusedGroup, equals: taskGroup.id)
+                                                    .onSubmit { saveGroupEdit(for: taskGroup) }
+                                                    .onChange(of: focusedGroup) { old, new in
+                                                        if new == nil && editingGroupId == taskGroup.id {
+                                                            saveGroupEdit(for: taskGroup)
+                                                        }
+                                                    }
+                                            } else {
+                                                Text(taskGroup.taskName)
+                                                    .font(.body)
+                                                    .background(Color.white.opacity(0.001))
+                                                    .onTapGesture {
+                                                        startGroupEditing(taskGroup)
+                                                    }
+                                                
+                                                if taskGroup.isFavorite {
+                                                    Image(systemName: "star.fill")
+                                                        .foregroundColor(.yellow)
+                                                        .font(.caption)
+                                                }
+                                            }
+                                        }
+                                        
+                                        if isSingle, let session = taskGroup.sessions.first {
+                                            Text("\(session.startDate, format: .dateTime.hour().minute()) - \(session.endDate ?? Date(), format: .dateTime.hour().minute())")
+                                                .font(.caption)
+                                                .foregroundColor(.secondary)
+                                        }
+                                    }
+                                    
+                                    Spacer()
+                                    
+                                    Text(formatDuration(taskGroup.totalDuration))
+                                        .font(.body)
+                                        .monospacedDigit()
+                                        .foregroundColor(.secondary)
+                                    
+                                    HStack(spacing: 12) {
+                                        Button { restartExistingTask(name: taskGroup.taskName) } label: {
+                                            Image(systemName: "play.fill").foregroundColor(.blue)
+                                        }.buttonStyle(.plain)
+                                        
+                                        Button { deleteGroup(taskGroup) } label: {
+                                            Image(systemName: "trash").foregroundColor(.red.opacity(0.7))
+                                        }.buttonStyle(.plain)
+                                    }
+                                    .padding(.leading, 8)
+                                }
+                                .padding(.vertical, 6)
+                                .contextMenu {
+                                    Button("Toggle Favorite") {
+                                        toggleFavorite(for: taskGroup.taskName)
+                                    }
+                                }
+                                
+                                if expandedGroups.contains(taskGroup.id) && !isSingle {
+                                    ForEach(taskGroup.sessions) { session in
+                                        HStack {
+                                            Text("\(session.startDate, format: .dateTime.hour().minute()) - \(session.endDate ?? Date(), format: .dateTime.hour().minute())")
+                                                .font(.caption)
+                                                .foregroundColor(.secondary)
+                                                .frame(width: 80, alignment: .leading)
+                                            
+                                            if editingSessionId == session.id {
+                                                TextField("Session name", text: $editedSessionName)
+                                                    .textFieldStyle(.plain)
+                                                    .font(.caption)
+                                                    .focused($focusedSession, equals: session.id)
+                                                    .onSubmit { saveSessionEdit(session) }
+                                                    .onChange(of: focusedSession) { old, new in
+                                                        if new == nil && editingSessionId == session.id {
+                                                            saveSessionEdit(session)
+                                                        }
+                                                    }
+                                            } else {
+                                                Text(session.taskName)
+                                                    .font(.caption)
+                                                    .foregroundColor(.secondary.opacity(0.6))
+                                                    .background(Color.white.opacity(0.001))
+                                                    .onTapGesture {
+                                                        startSessionEditing(session)
+                                                    }
+                                            }
+                                            
+                                            Spacer()
+                                            
+                                            Text(formatDuration(getDuration(of: session)))
+                                                .font(.caption)
+                                                .monospacedDigit()
+                                                .foregroundColor(.secondary)
+                                            
+                                            Button {
+                                                deleteSession(session)
+                                            } label: {
+                                                Image(systemName: "trash")
+                                                    .foregroundColor(.red.opacity(0.7))
+                                                    .font(.caption)
+                                            }
+                                            .buttonStyle(.plain)
+                                            .padding(.leading, 8)
+                                        }
+                                        .padding(.vertical, 4)
+                                        .padding(.leading, 24)
+                                    }
+                                }
+                            }
+                            .listRowSeparator(.hidden)
+                            .id(taskGroup.id)
+                        }
+                    }
+                    .listStyle(.plain)
+                    .onChange(of: sessions.count) { old, new in
+                        if new > old {
+                            withAnimation(.spring()) {
+                                if let firstId = groupedTasks.first?.id {
+                                    proxy.scrollTo(firstId, anchor: .top)
                                 }
                             }
                         }
-                        .listRowSeparator(.hidden)
                     }
                 }
-                .listStyle(.plain)
             }
         }
         .frame(width: 330, height: 480)
